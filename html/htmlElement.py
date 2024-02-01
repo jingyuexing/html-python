@@ -17,6 +17,7 @@ TagName = Literal[
     "ol",
     "li",
     "i",
+    "p",
     "html",
     "button",
     "body",
@@ -226,8 +227,20 @@ class HTMLImageElement(HTMLElement):
 
     def __str__(self):
         tagwithattr = [self.tagName, self.__attributes_str__()]
-        return "<{tag}>".format(tag=tagwithattr)
 
+        if len(self.classList) > 0:
+            tagwithattr.append("class=\"{v}\"".format(v=str(self.classList)))
+        
+        if len(str(self.style)) > 0:
+            tagwithattr.append("style=\"{style}\"".format(style=str(self.style)))
+        
+        return "<{tag}>".format(tag=" ".join(tagwithattr))
+
+
+class HTMLParagraphElement(HTMLElement):
+    def __init__(self):
+        super().__init__()
+        self.tagName = self.nodeName = "p"
 
 class HTMLBRElement(HTMLElement):
     def __init__(self):
@@ -236,7 +249,14 @@ class HTMLBRElement(HTMLElement):
 
     def __str__(self):
         tagwithattr = [self.tagName, self.__attributes_str__()]
-        return "<{tag}>".format(tag=tagwithattr)
+
+        if len(self.classList) > 0:
+            tagwithattr.append("class=\"{v}\"".format(v=str(self.classList)))
+        
+        if len(str(self.style)) > 0:
+            tagwithattr.append("style=\"{style}\"".format(style=str(self.style)))
+        
+        return "<{tag}>".format(tag=" ".join(tagwithattr))
 
 
 def createMeta(head: Element, meta: Dict[str, str]):
@@ -265,6 +285,7 @@ def createElement(tag: TagName) -> HTMLElement:
         "ul": HTMLULElement,
         "ol": HTMLOLElement,
         "i": HTMLIElement,
+        "p":HTMLParagraphElement,
         "button": HTMLBUTTONElement,
         "li": HTMLLIElement,
         "script": HTMLSCRIPTElement,
@@ -304,23 +325,24 @@ def createVMeta(description:Dict[str,str])->List['VNode']:
         }))
     return VNodes
 
-def createVNode(root: "HTMLElement", tree: "VNode"):
-    tag = createElement(tree.tag)
-    tag.className = tree.className
-    if len(tree.className) > 0 and tree.className != "":
-        tag.className = tree.className
-    if len(tree.style) > 0:
-        for key in tree.style:
-            tag.style.setProperty(key, tree.style.get(key))
-    if len(tree.attribute) > 0:
-        for key in tree.attribute:
-            tag.setAttributes(key, tree.attribute[key])
-    for vnode in tree.child:
-        if isinstance(vnode, VNode):
-            createVNode(tag, vnode)
-        if isinstance(vnode, str):
-            tag.textContent = createTextNode(vnode)
-    root.appendChild(tag)
+def createVNode(root: "HTMLElement", tree: List["VNode"]):
+    for t in tree:
+        tag = createElement(t.tag)
+        if len(t.className) > 0 and t.className != "":
+            tag.className = t.className
+        if len(t.style) > 0:
+            for key in t.style:
+                tag.style.setProperty(key, t.style.get(key))
+        if len(t.attribute) > 0:
+            for key in t.attribute:
+                tag.setAttributes(key, t.attribute[key])
+        for vnode in t.child:
+            if isinstance(vnode, VNode):
+                createVNode(tag, [vnode])
+            if isinstance(vnode, str):
+                tag.textContent = createTextNode(vnode)
+        root.appendChild(tag)
+    return root
 
 
 PAGE = HTMLHTMLElement()
@@ -333,13 +355,13 @@ def HTML(description: Dict[str, Any]):
     title.textContent = description.get("title", "")
     createVNode(
         document,
-        VNode(
-            tag="head",
-            child=[
-                VNode("meta",attribute={"charset": description.get("charset","UTF-8")}),
-                *createVMeta(description=description.get("meta",{})),
-            ],
-        ),
+        [VNode(
+                    tag="head",
+                    child=[
+                        VNode("meta",attribute={"charset": description.get("charset","UTF-8")}),
+                        *createVMeta(description=description.get("meta",{})),
+                    ],
+                )],
     )
     head = document.getElementByTagName("head")[0]
     head.appendChild(title)
